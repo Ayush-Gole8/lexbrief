@@ -69,6 +69,28 @@ INEXT_TO_COARSE: dict[str, str] = {
 }
 """IN-Ext expert summary segment names -> coarse sections."""
 
+INEXT_SEGMENT_TO_CODE: dict[str, str] = {
+    "facts": "FAC",
+    "argument": "ARG",
+    "statute": "STA",
+    "analysis": "Ratio",
+    "judgement": "RPC",
+}
+"""Zenodo IN-Ext ``summary/segment-wise/<A>/<folder>`` names -> IN-Ext codes.
+
+The released data has no separate precedent folder: precedent discussion is part of
+``analysis`` (mapped to Ratio / REASONING), so ``PRE`` never occurs in practice.
+"""
+
+INEXT_HEADING_TO_COARSE: dict[str, str] = {
+    "FACTS": "FACTS",
+    "ARGUMENT": "ARGUMENTS",
+    "ISSUE": "ISSUES",
+    "STATUTE": "STATUTE",
+    "ANALYSIS": "REASONING",
+}
+"""Section headings found in IN-Ext ``summary/full`` files -> coarse sections."""
+
 BRIEF_SECTION_ORDER: tuple[str, ...] = (
     "FACTS",
     "ISSUES",
