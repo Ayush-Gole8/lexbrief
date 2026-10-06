@@ -1,0 +1,37 @@
+# Data pipeline config: `lexbrief download`, `lexbrief inspect-raw`, `lexbrief prepare-data`.
+seed: 42
+
+paths:
+  logs_dir: outputs/logs
+
+data:
+  # BUILD / InRhetoricalRoles (gated HF dataset: accept terms + `hf auth login`)
+  build_repo_id: opennyaiorg/InRhetoricalRoles
+  build_files: [train.json, dev.json, test.json]
+  build_dir: data/raw/build
+
+  # IN-Ext / IN-Abs / UK-Abs archive (Zenodo record 7152317)
+  zenodo_url: https://zenodo.org/records/7152317/files/dataset.zip?download=1
+  zenodo_md5: c77948fe580d26200f5c9fe53b81485d
+  zenodo_dir: data/raw/zenodo
+  inext_subdir: IN-Ext
+
+  # Outputs
+  processed_dir: data/processed
+  folds_file: data/processed/inext_folds.json
+  stats_md: outputs/results/data_stats.md
+  label_dist_figure: outputs/figures/label_distribution.png
+
+  # Processing
+  spacy_model: en_core_web_sm
+  tokenizer: law-ai/InLegalBERT
+  val_fraction: 0.1
+  n_folds: 5
+  min_sentence_chars: 3
+
+  # Summary -> judgment alignment
+  fuzzy_threshold: 90.0        # rapidfuzz fuzz.ratio fallback
+  partial_threshold: 90.0      # sub-span tier (fuzz.partial_ratio); null disables
+  partial_min_tokens: 6
+  partial_min_len_ratio: 0.6
+  align_warn_below: 0.95

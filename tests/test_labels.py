@@ -76,6 +76,20 @@ def test_inext_to_coarse_complete() -> None:
     assert set(L.INEXT_TO_COARSE.values()) <= set(L.BRIEF_SECTION_ORDER)
 
 
+def test_inext_segment_and_heading_maps() -> None:
+    assert L.INEXT_SEGMENT_TO_CODE == {
+        "facts": "FAC",
+        "argument": "ARG",
+        "statute": "STA",
+        "analysis": "Ratio",
+        "judgement": "RPC",
+    }
+    for code in L.INEXT_SEGMENT_TO_CODE.values():
+        assert code in L.INEXT_TO_COARSE
+    assert L.INEXT_HEADING_TO_COARSE["ISSUE"] == "ISSUES"
+    assert set(L.INEXT_HEADING_TO_COARSE.values()) <= set(L.BRIEF_SECTION_ORDER)
+
+
 def test_id_roundtrip() -> None:
     for i, label in enumerate(L.FINE_LABELS):
         assert L.fine_id(label) == i

@@ -44,11 +44,29 @@ class PathsConfig:
 class DataConfig:
     """Dataset preparation settings."""
 
+    # Raw sources
+    build_repo_id: str = "opennyaiorg/InRhetoricalRoles"
+    build_files: list[str] = field(default_factory=lambda: ["train.json", "dev.json", "test.json"])
     build_dir: str = "data/raw/build"
-    inext_dir: str = "data/raw/inext"
+    zenodo_url: str = "https://zenodo.org/records/7152317/files/dataset.zip?download=1"
+    zenodo_md5: str = "c77948fe580d26200f5c9fe53b81485d"
+    zenodo_dir: str = "data/raw/zenodo"
+    inext_subdir: str = "IN-Ext"
+    # Outputs
+    processed_dir: str = "data/processed"
+    folds_file: str = "data/processed/inext_folds.json"
+    stats_md: str = "outputs/results/data_stats.md"
+    label_dist_figure: str = "outputs/figures/label_distribution.png"
+    # Processing
     spacy_model: str = "en_core_web_sm"
+    tokenizer: str = "law-ai/InLegalBERT"
     val_fraction: float = 0.1
-    max_sentences_per_doc: int = 1024
+    n_folds: int = 5
+    fuzzy_threshold: float = 90.0
+    partial_threshold: float | None = 90.0
+    partial_min_tokens: int = 6
+    partial_min_len_ratio: float = 0.6
+    align_warn_below: float = 0.95
     min_sentence_chars: int = 3
 
 

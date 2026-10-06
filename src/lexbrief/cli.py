@@ -76,10 +76,70 @@ def _stub(prompt: int) -> None:
     raise typer.Exit(code=0)
 
 
+DATA_CONFIG = "configs/data.yaml"
+_CONFIG_OPT = typer.Option(DATA_CONFIG, "--config", "-c", help="YAML config file.")
+_OVERRIDES_ARG = typer.Argument(None, help="Overrides like data.val_fraction=0.2")
+
+
+def _load(config: str, overrides: list[str] | None):  # noqa: ANN202 - Config
+    from lexbrief.config import load_config
+    from lexbrief.utils.seed import set_seed
+
+    cfg = load_config(config, overrides or [])
+    set_seed(cfg.seed)
+    return cfg
+
+
+@app.command()
+def download(
+    config: str = _CONFIG_OPT,
+    force: bool = typer.Option(False, "--force", help="Re-download even if present."),
+    overrides: list[str] = _OVERRIDES_ARG,
+) -> None:
+    """Download BUILD (Hugging Face) and IN-Ext/IN-Abs (Zenodo) into data/raw/."""
+    from lexbrief.data.download import download_all
+
+    cfg = _load(config, overrides)
+    if download_all(cfg.data, force=force):
+        typer.echo("All raw data downloaded.")
+    else:
+        typer.echo("Some downloads failed; see the instructions above.")
+        raise typer.Exit(code=1)
+
+
+@app.command("inspect-raw")
+def inspect_raw(config: str = _CONFIG_OPT, overrides: list[str] = _OVERRIDES_ARG) -> None:
+    """Show the raw data layout, file counts, samples and whether test.json is labelled."""
+    from lexbrief.data.download import inspect_raw as _inspect
+
+    cfg = _load(config, overrides)
+    for line in _inspect(cfg.data):
+        typer.echo(line)
+
+
 @app.command("prepare-data")
-def prepare_data() -> None:
-    """Download, sentence-split, align and split datasets."""
-    _stub(2)
+def prepare_data(config: str = _CONFIG_OPT, overrides: list[str] = _OVERRIDES_ARG) -> None:
+    """Parse BUILD + IN-Ext, align summaries, split, and write data_stats.md."""
+    from lexbrief.data.prepare import prepare_data as _prepare
+    from lexbrief.utils.logging import setup_logging
+
+    cfg = _load(config, overrides)
+    setup_logging("prepare_data", log_dir=cfg.paths.logs_dir)
+    try:
+        summary = _prepare(cfg)
+    except FileNotFoundError as e:
+        typer.echo(f"ERROR: {e}")
+        raise typer.Exit(code=1) from None
+    width = max(len(k) for k in summary["sizes"])
+    for name, v in summary["sizes"].items():
+        typer.echo(f"{name:<{width}} : {v['docs']:>5} docs  {v['sentences']:>7} sentences")
+    a = summary["alignment"]
+    typer.echo(
+        f"IN-Ext alignment rate: {100 * a['overall']:.1f}% "
+        f"(strict exact+fuzzy {100 * a['strict_exact_fuzzy']:.1f}%)"
+    )
+    typer.echo(f"Recommended max_length: {summary['recommended_max_len']}")
+    typer.echo(f"Report: {cfg.data.stats_md}")
 
 
 @app.command()
