@@ -26,9 +26,10 @@ Layout: `src/lexbrief/` (package), `configs/` (YAML), `tests/`, `scripts/` (Powe
   GradScaler.
 - **Never commit** `data/`, `models/`, `.venv/`, checkpoints (`*.pt`, `*.bin`, `*.safetensors`),
   `outputs/logs/` or `outputs/runs/`. Only the `.gitkeep` placeholders are tracked there.
-- Python 3.11 venv at `.venv`. torch comes from the cu121 index and is NOT in requirements.txt.
-  The installed versions are torch 2.5.1+cu121 and transformers 5.x, so use the v5 APIs
-  (e.g. `dtype=` rather than `torch_dtype=`).
+- Python 3.11 venv at `.venv`. torch (>= 2.6, **cu126** index) is NOT in requirements.txt.
+  torch >= 2.6 is mandatory because transformers 5.x refuses `.bin` checkpoints such as
+  InLegalBERT on older torch (CVE-2025-32434), and the cu121 index stops at 2.5.1. Use the
+  transformers v5 APIs (e.g. `dtype=` rather than `torch_dtype=`).
 
 ## Conventions
 - Type hints on every function and Google-style docstrings on public functions and classes.

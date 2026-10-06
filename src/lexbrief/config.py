@@ -75,6 +75,8 @@ class ModelConfig:
     """Sentence encoder and sequence-model settings."""
 
     name: str = "m1_inlegalbert"
+    kind: str = "sentence"
+    """``tfidf`` (M0), ``sentence`` (M1), ``context`` (M2)."""
     encoder: str = "law-ai/InLegalBERT"
     max_length: int = 128
     num_labels: int = 13
@@ -84,6 +86,12 @@ class ModelConfig:
     lstm_layers: int = 1
     use_crf: bool = True
     freeze_encoder: bool = False
+    # M0 TF-IDF + logistic regression
+    tfidf_ngram_max: int = 2
+    tfidf_max_features: int = 50000
+    tfidf_min_df: int = 2
+    lr_c_grid: list[float] = field(default_factory=lambda: [0.1, 0.3, 1.0, 3.0, 10.0])
+    lr_max_iter: int = 2000
 
 
 @dataclass
@@ -104,6 +112,13 @@ class TrainConfig:
     early_stopping_patience: int = 2
     eval_every_steps: int = 0
     output_dir: str = "models/checkpoints"
+    eval_batch_size: int = 64
+    seeds: list[int] = field(default_factory=lambda: [13, 42, 1234])
+    class_weighting: str = "inv_sqrt"
+    """``inv_sqrt`` (1/sqrt(freq), mean-normalised) or ``none``."""
+    max_docs: int = 0
+    """Smoke mode: use only the first N train/val docs (0 = all)."""
+    log_every_steps: int = 50
 
 
 @dataclass
