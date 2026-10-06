@@ -1,0 +1,34 @@
+# Python / environments
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# Data and models: ignore everything except .gitkeep placeholders
+data/**
+!data/**/
+!data/**/.gitkeep
+models/**
+!models/**/
+!models/**/.gitkeep
+
+# Outputs: logs and runs ignored; results/ and figures/ are tracked
+outputs/logs/*
+!outputs/logs/.gitkeep
+outputs/runs/*
+!outputs/runs/.gitkeep
+
+# Weights, checkpoints, archives
+*.pt
+*.bin
+*.safetensors
+*.zip
+
+# Notebooks / tooling
+.ipynb_checkpoints/
+wandb/
+.streamlit/secrets.toml

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lexbrief"
+version = "0.1.0"
+description = "Rhetorical-role-aware extractive brief generator for Indian court judgments"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Sarvadnya" }]
+license = { text = "MIT" }
+# Runtime dependencies live in requirements.txt (torch is installed separately for CUDA).
+dependencies = []
+
+[project.scripts]
+lexbrief = "lexbrief.cli:app"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lexbrief*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".venv", "notebooks", "data", "models", "outputs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["lexbrief"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"

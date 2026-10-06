@@ -1,0 +1,25 @@
+# torch is NOT listed here: install it first from the CUDA 12.1 index (see scripts/setup_env.ps1).
+transformers>=4.44
+accelerate>=0.33
+datasets>=2.20
+huggingface_hub
+pandas>=2.2
+numpy>=1.26
+scikit-learn>=1.5
+scipy>=1.13
+pytorch-crf==0.7.2
+spacy>=3.7,<3.9
+rapidfuzz>=3.9
+networkx>=3.3
+sumy>=0.11
+rouge-score==0.1.2
+pyyaml>=6.0
+typer>=0.12
+tensorboard>=2.17
+pymupdf>=1.24
+streamlit>=1.37
+matplotlib>=3.9
+tqdm
+pytest>=8.3
+ruff>=0.6
+pre-commit>=3.8
