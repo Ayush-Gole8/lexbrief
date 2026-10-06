@@ -35,8 +35,11 @@ try {
         python -c "import sys; assert sys.version_info[:2] == (3, 11), sys.version; print(sys.version)"
     }
     Invoke-Step "Upgrade pip" { python -m pip install --upgrade pip setuptools wheel }
-    Invoke-Step "Install torch (CUDA 12.1 wheels)" {
-        python -m pip install torch --index-url https://download.pytorch.org/whl/cu121
+    # torch >= 2.6 is required: transformers 5.x refuses to load .bin checkpoints (InLegalBERT)
+    # on older torch (CVE-2025-32434). cu121 stops at 2.5.1, so use cu126 wheels; they run on
+    # CUDA 12.x drivers via minor-version compatibility.
+    Invoke-Step "Install torch >= 2.6 (CUDA 12.6 wheels)" {
+        python -m pip install "torch>=2.6" --index-url https://download.pytorch.org/whl/cu126
     }
     Invoke-Step "Install requirements.txt" { python -m pip install -r requirements.txt }
     Invoke-Step "Install lexbrief (editable)" { python -m pip install -e . }

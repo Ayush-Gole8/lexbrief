@@ -1,4 +1,4 @@
-# torch is NOT listed here: install it first from the CUDA 12.1 index (see scripts/setup_env.ps1).
+# torch is NOT listed here: install torch>=2.6 from the CUDA 12.6 index (see scripts/setup_env.ps1).
 transformers>=4.44
 accelerate>=0.33
 datasets>=2.20

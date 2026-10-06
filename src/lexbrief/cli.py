@@ -143,9 +143,58 @@ def prepare_data(config: str = _CONFIG_OPT, overrides: list[str] = _OVERRIDES_AR
 
 
 @app.command()
-def train() -> None:
-    """Train a sentence-role classifier or hierarchical model."""
-    _stub(3)
+def train(
+    config: str = typer.Option(
+        ..., "--config", "-c", help="Model YAML, e.g. configs/m1_inlegalbert.yaml"
+    ),
+    seed: int | None = typer.Option(None, "--seed", help="Override the seed."),
+    all_seeds: bool = typer.Option(False, "--all-seeds", help="Train once per train.seeds."),
+    max_docs: int | None = typer.Option(None, "--max-docs", help="Smoke mode: first N docs."),
+    epochs: int | None = typer.Option(None, "--epochs", help="Override train.epochs."),
+    no_eval: bool = typer.Option(False, "--no-eval", help="Skip test/IN-Ext evaluation."),
+    overrides: list[str] = _OVERRIDES_ARG,
+) -> None:
+    """Train a sentence-role classifier (M0 / M1 / M2) and evaluate the best checkpoint."""
+    from lexbrief.config import load_config
+    from lexbrief.training.evaluate_classifier import evaluate_run
+    from lexbrief.training.train_sentence import train as _train
+    from lexbrief.utils.logging import setup_logging
+
+    extra = list(overrides or [])
+    if max_docs is not None:
+        extra.append(f"train.max_docs={max_docs}")
+    if epochs is not None:
+        extra.append(f"train.epochs={epochs}")
+    base = load_config(config, extra)
+    seeds = base.train.seeds if all_seeds else [seed if seed is not None else base.seed]
+    setup_logging(f"train_{base.model.name}", log_dir=base.paths.logs_dir)
+    for s in seeds:
+        cfg = load_config(config, [*extra, f"seed={s}"])
+        try:
+            summary = _train(cfg)
+        except FileNotFoundError as e:
+            typer.echo(f"ERROR: {e}")
+            raise typer.Exit(code=1) from None
+        typer.echo(
+            f"Trained {summary['run']}: "
+            + ", ".join(
+                f"{k}={v}" for k, v in summary.items() if k not in ("history", "gpu", "c_scores")
+            )
+        )
+        if not no_eval:
+            m = evaluate_run(summary["run"], cfg.paths.models_dir, cfg.paths.results_dir)
+            _echo_metrics(m)
+
+
+def _echo_metrics(m: dict) -> None:
+    b = m["build_test"]
+    typer.echo(
+        f"[{m['run']}] BUILD test: fine macro-F1 {b['fine']['macro_f1']:.4f} | "
+        f"weighted-F1 {b['fine']['weighted_f1']:.4f} | "
+        f"coarse macro-F1 {b['coarse']['macro_f1']:.4f}"
+    )
+    if "inext" in m:
+        typer.echo(f"[{m['run']}] IN-Ext coarse macro-F1 {m['inext']['coarse']['macro_f1']:.4f}")
 
 
 @app.command()
@@ -161,9 +210,23 @@ def brief() -> None:
 
 
 @app.command()
-def evaluate() -> None:
-    """Evaluate classifiers and briefs (ROUGE, per-role ROUGE, coverage)."""
-    _stub(6)
+def evaluate(
+    run: str = typer.Option(..., "--run", help="Run name under models/, e.g. m1_inlegalbert_s42"),
+    models_dir: str = typer.Option("models", "--models-dir"),
+    results_dir: str = typer.Option("outputs/results", "--results-dir"),
+) -> None:
+    """Evaluate a trained classifier run on BUILD test and IN-Ext (briefs: Prompt 6)."""
+    from lexbrief.training.evaluate_classifier import evaluate_run
+    from lexbrief.utils.logging import setup_logging
+
+    setup_logging(f"evaluate_{run}", log_dir="outputs/logs")
+    try:
+        m = evaluate_run(run, models_dir, results_dir)
+    except FileNotFoundError as e:
+        typer.echo(f"ERROR: {e}")
+        raise typer.Exit(code=1) from None
+    _echo_metrics(m)
+    typer.echo(f"Wrote {results_dir}/{run}/metrics.json")
 
 
 @app.command()

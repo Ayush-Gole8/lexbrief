@@ -22,7 +22,7 @@ git clone <your-repo-url> lexbrief
 cd lexbrief
 py -3.11 -m venv .venv                      # skipped automatically if .venv exists
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\scripts\setup_env.ps1                     # torch (cu121), requirements, -e ., spaCy, pre-commit
+.\scripts\setup_env.ps1                     # torch>=2.6 (cu126), requirements, -e ., spaCy, pre-commit
 .\.venv\Scripts\Activate.ps1
 lexbrief check-env                          # GPU, VRAM, bf16, versions
 pytest -q

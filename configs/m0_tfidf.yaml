@@ -1,0 +1,23 @@
+# M0: TF-IDF word 1-2 grams + LogisticRegression(class_weight=balanced); C chosen on build_val.
+seed: 42
+device: cpu
+
+model:
+  name: m0_tfidf
+  kind: tfidf
+  tfidf_ngram_max: 2
+  tfidf_max_features: 50000
+  tfidf_min_df: 2
+  lr_c_grid: [0.1, 0.3, 1.0, 3.0, 10.0]
+  lr_max_iter: 2000
+
+train:
+  seeds: [13, 42, 1234]
+
+data:
+  processed_dir: data/processed
+
+paths:
+  models_dir: models
+  results_dir: outputs/results
+  logs_dir: outputs/logs
