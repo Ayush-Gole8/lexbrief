@@ -45,7 +45,8 @@ def test_bad_type_raises() -> None:
 
 
 def test_save_roundtrip(tmp_path: Path) -> None:
-    cfg = load_config(overrides=["brief.target_words=250"])
+    cfg = load_config(overrides=["brief.budget_fraction=0.25", "brief.expert_shares.RULING=0.5"])
+    assert cfg.brief.expert_shares["RULING"] == 0.5
     out = tmp_path / "saved.yaml"
     save_config(cfg, out)
     assert load_config(out) == cfg

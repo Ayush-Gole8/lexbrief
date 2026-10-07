@@ -237,9 +237,66 @@ def embed(
 
 
 @app.command()
-def brief() -> None:
-    """Generate an extractive brief for a judgment."""
-    _stub(5)
+def brief(
+    doc_id: str = typer.Option(..., "--doc-id", help="IN-Ext document id, e.g. 1953_L_1"),
+    strategy: str = typer.Option("A3", "--strategy", help="Budget strategy: A1, A2 or A3"),
+    roles: str = typer.Option("predicted", "--roles", help="predicted | gold"),
+    budget: float = typer.Option(None, "--budget", help="<=1: fraction of doc words; >1: words"),
+    compare: str = typer.Option(
+        "none", "--compare", help="Also print a baseline: textrank, lexrank, lead, mmr, oracle"
+    ),
+    no_search: bool = typer.Option(False, "--no-search", help="Skip the weight grid search."),
+    config: str = typer.Option("configs/brief.yaml", "--config", "-c"),
+    overrides: list[str] = _OVERRIDES_ARG,
+) -> None:
+    """Print a role-budgeted extractive brief for one IN-Ext judgment.
+
+    A3 shares, position priors and score weights are fitted on the training folds of the
+    document's IN-Ext fold, so the document itself is never seen during fitting.
+    """
+    from lexbrief.brief.selector import brief_words, format_brief
+    from lexbrief.pipeline import (
+        BriefSystem,
+        baseline_indices,
+        fold_train_ids,
+        load_inext_docs,
+        resolve_length,
+    )
+    from lexbrief.utils.logging import setup_logging
+
+    cfg = _load(config, overrides)
+    setup_logging(f"brief_{doc_id}", log_dir=cfg.paths.logs_dir, level=logging.WARNING)
+    try:
+        docs = {d.doc_id: d for d in load_inext_docs(cfg)}
+        train_ids = fold_train_ids(cfg, doc_id)
+    except (FileNotFoundError, KeyError) as e:
+        typer.echo(f"ERROR: {e}")
+        raise typer.Exit(code=1) from None
+    if doc_id not in docs:
+        typer.echo(f"ERROR: unknown doc id {doc_id!r}")
+        raise typer.Exit(code=1)
+    doc = docs[doc_id]
+    length = resolve_length(doc, budget if budget is not None else cfg.brief.budget_fraction)
+    system = BriefSystem(cfg, strategy=strategy, roles=roles).fit(
+        [docs[i] for i in train_ids], search_weights=not no_search
+    )
+    out = system.generate(doc, length)
+    w = ", ".join(
+        f"{k}={v:g}" for k, v in zip(("cent", "pos", "cue", "conf"), system.weights, strict=True)
+    )
+    title = (
+        f"{doc_id} | {strategy}-{roles} | L={length} words "
+        f"({brief_words(out, doc.words)} used of {doc.n_words}) | weights {w}"
+    )
+    typer.echo(format_brief(out, title))
+    if compare != "none":
+        idx = baseline_indices(compare, doc, length, cfg)
+        used = sum(doc.words[i] for i in idx)
+        head = f"{doc_id} | {compare} baseline | L={length} words ({used} used)"
+        typer.echo("\n\n" + head + "\n" + "=" * len(head))
+        pred_roles, _ = doc.roles("predicted")
+        for i in idx:
+            typer.echo(f"- [{i}] ({pred_roles[i] or '-'}) {doc.texts[i]}")
 
 
 @app.command()
