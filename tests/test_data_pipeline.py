@@ -32,6 +32,20 @@ def test_parse_document_keeps_order_and_maps_coarse() -> None:
     assert [s["idx"] for s in doc["sentences"]] == [0, 1, 2, 3]
 
 
+def test_parse_file_positional_ids_without_id_field(tmp_path) -> None:  # noqa: ANN001
+    import json
+
+    from lexbrief.data.build_parser import parse_file
+
+    raw = [_raw(0, "Tax", ["FAC"]), _raw(0, "Criminal", ["RPC"])]
+    for r in raw:
+        del r["id"]  # the real release has no id field
+    path = tmp_path / "train.json"
+    path.write_text(json.dumps(raw), encoding="utf-8")
+    docs = parse_file(path, "train")
+    assert [d["doc_id"] for d in docs] == ["build_train_0000", "build_train_0001"]
+
+
 def test_has_labels() -> None:
     assert has_labels([_raw(1, "Tax", ["FAC"])])
     unlabelled = _raw(1, "Tax", ["FAC"])
