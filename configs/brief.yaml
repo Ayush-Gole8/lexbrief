@@ -1,0 +1,46 @@
+# Role-budgeted extractive brief generator (Prompt 5).
+#   lexbrief brief --doc-id 1953_L_1 --strategy A3 --roles predicted --budget 0.3
+seed: 42
+
+brief:
+  roles_run: m3a_bilstm_crf_s42      # outputs/results/<run>/preds_inext.jsonl
+  emb_run: m1_inlegalbert_s42        # data/interim/emb/<run>/inext.pt
+  emb_pool: cls
+
+  # Budget (L = budget_fraction x document words unless --budget > 1)
+  budget_fraction: 0.3
+  strategy: A3                        # A1 proportional | A2 expert-priority | A3 learned
+  expert_shares:                      # A2, DELSumm ordering
+    RULING: 0.25
+    ISSUES: 0.20
+    FACTS: 0.18
+    STATUTE: 0.10
+    PRECEDENT: 0.10
+    REASONING: 0.10
+    ARGUMENTS: 0.07
+  ruling_min_sentences: 3
+  min_sentences_per_role: 1
+
+  # Features
+  edge_threshold: 0.1                 # drop TextRank edges with cosine < 0.1
+  pagerank_damping: 0.85
+  pos_bins: 10
+  pos_laplace: 1.0
+
+  # Scorer: score = alpha*cent + beta*pos + gamma*cue + delta*conf
+  weights: [1.0, 1.0, 1.0, 1.0]
+  weight_grid: [0.0, 0.25, 0.5, 1.0]  # {0,.25,.5,1}^4 minus all-zero, max mean ROUGE-2
+
+  # Selector / baselines
+  redundancy_threshold: 0.8           # skip sentences with cosine > 0.8 to any selected
+  mmr_lambda: 0.7
+  rouge_stemmer: true
+
+data:
+  processed_dir: data/processed
+  folds_file: data/processed/inext_folds.json
+
+paths:
+  emb_dir: data/interim/emb
+  results_dir: outputs/results
+  logs_dir: outputs/logs

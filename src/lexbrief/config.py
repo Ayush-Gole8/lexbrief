@@ -131,23 +131,46 @@ class TrainConfig:
 
 @dataclass
 class BriefConfig:
-    """Extractive brief generation settings."""
+    """Role-budgeted extractive brief settings (Prompt 5). Section order comes from labels.py."""
 
-    target_words: int = 400
-    budget_source: str = "learned"
-    min_words_per_section: int = 0
-    redundancy_threshold: float = 0.7
-    section_order: list[str] = field(
-        default_factory=lambda: [
-            "FACTS",
-            "ISSUES",
-            "ARGUMENTS",
-            "STATUTE",
-            "PRECEDENT",
-            "REASONING",
-            "RULING",
-        ]
+    # Inputs
+    roles_run: str = "m3a_bilstm_crf_s42"
+    """Run whose ``outputs/results/<run>/preds_inext.jsonl`` supplies predicted roles."""
+    emb_run: str = "m1_inlegalbert_s42"
+    """Cached sentence embeddings (``paths.emb_dir/<run>/inext.pt``)."""
+    emb_pool: str = "cls"
+    # Budget
+    budget_fraction: float = 0.3
+    """Default L as a fraction of document words (``--budget`` > 1 means absolute words)."""
+    strategy: str = "A3"
+    expert_shares: dict[str, float] = field(
+        default_factory=lambda: {
+            "RULING": 0.25,
+            "ISSUES": 0.20,
+            "FACTS": 0.18,
+            "STATUTE": 0.10,
+            "PRECEDENT": 0.10,
+            "REASONING": 0.10,
+            "ARGUMENTS": 0.07,
+        }
     )
+    """A2 expert-priority shares (DELSumm ordering RULING > ISSUES > FACTS > STA/PRE/REASONING >
+    ARGUMENTS)."""
+    ruling_min_sentences: int = 3
+    min_sentences_per_role: int = 1
+    # Features
+    edge_threshold: float = 0.1
+    pagerank_damping: float = 0.85
+    pos_bins: int = 10
+    pos_laplace: float = 1.0
+    # Scorer
+    weights: list[float] = field(default_factory=lambda: [1.0, 1.0, 1.0, 1.0])
+    """Default (alpha cent, beta pos, gamma cue, delta conf) before grid search."""
+    weight_grid: list[float] = field(default_factory=lambda: [0.0, 0.25, 0.5, 1.0])
+    # Selector / baselines
+    redundancy_threshold: float = 0.8
+    mmr_lambda: float = 0.7
+    rouge_stemmer: bool = True
 
 
 @dataclass
