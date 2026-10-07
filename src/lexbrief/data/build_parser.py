@@ -2,9 +2,11 @@
 
 Each file is a list of documents::
 
-    {"id": ..., "data": {"text": ...}, "meta": {"group": ...},
-     "annotations": [{"result": [{"value": {"start", "end", "text", "labels": [ROLE]}}, ...]}]}
+    {"data": {"text": ...}, "meta": {"group": "Criminal" | "Tax"},
+     "annotations": [{"result": [{"value": {"text": ..., "labels": [ROLE]}}, ...]}]}
 
+Verified on the real release (train 247 / dev 30 / test 50 docs, all 13 labels, test.json
+labelled). There is no document id, so ids are positional (``build_<file>_<NNNN>``).
 Sentences are the ``annotations[0].result[*].value`` spans, kept in file order.
 """
 
@@ -48,8 +50,23 @@ def _meta_group(doc: dict[str, Any]) -> str | None:
     return None
 
 
-def parse_document(doc: dict[str, Any], split: str, min_chars: int = 1) -> dict[str, Any]:
+def doc_id_for(doc: dict[str, Any], source_file: str, position: int) -> str:
+    """Stable document id.
+
+    The released BUILD JSON has no ``id`` field at any level (verified with
+    ``lexbrief inspect-raw``), so ids are positional within the source file, e.g.
+    ``build_train_0007``. An ``id`` key is used instead if a future release adds one.
+    """
+    if doc.get("id") is not None:
+        return f"build_{doc['id']}"
+    return f"build_{source_file}_{position:04d}"
+
+
+def parse_document(
+    doc: dict[str, Any], split: str, min_chars: int = 1, doc_id: str | None = None
+) -> dict[str, Any]:
     """Convert one Label-Studio document into the canonical schema."""
+    doc_id = doc_id or doc_id_for(doc, split, 0)
     anns = doc.get("annotations") or []
     results = (anns[0].get("result") or []) if anns else []
     sentences: list[dict[str, Any]] = []
@@ -76,11 +93,11 @@ def parse_document(doc: dict[str, Any], split: str, min_chars: int = 1) -> dict[
             }
         )
     if unknown:
-        logger.warning("Doc %s: unknown labels %s set to None", doc.get("id"), sorted(unknown))
+        logger.warning("Doc %s: unknown labels %s set to None", doc_id, sorted(unknown))
     meta = dict(doc.get("meta") or {}) if isinstance(doc.get("meta"), dict) else {}
     meta["group"] = _meta_group(doc)
     return {
-        "doc_id": f"build_{doc.get('id')}",
+        "doc_id": doc_id,
         "source": "build",
         "split": split,
         "meta": meta,
@@ -91,7 +108,14 @@ def parse_document(doc: dict[str, Any], split: str, min_chars: int = 1) -> dict[
 def parse_file(path: str | Path, split: str, min_chars: int = 1) -> list[dict[str, Any]]:
     """Parse every document in a BUILD JSON file."""
     raw = load_raw(path)
-    docs = [parse_document(d, split, min_chars) for d in raw]
+    stem = Path(path).stem
+    docs = [
+        parse_document(d, split, min_chars, doc_id=doc_id_for(d, stem, i))
+        for i, d in enumerate(raw)
+    ]
+    ids = [d["doc_id"] for d in docs]
+    if len(set(ids)) != len(ids):
+        raise ValueError(f"Duplicate document ids in {path}")
     docs = [d for d in docs if d["sentences"]]
     logger.info(
         "BUILD %s: %d docs, %d sentences (%s)",
