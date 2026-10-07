@@ -1,0 +1,6 @@
+# M3a-noCRF ablation: BiLSTM + softmax (cross-entropy) instead of the CRF layer.
+base: m3a_bilstm_crf.yaml
+
+model:
+  name: m3a_nocrf
+  use_crf: false

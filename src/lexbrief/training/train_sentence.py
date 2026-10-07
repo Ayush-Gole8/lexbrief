@@ -255,4 +255,8 @@ def train(cfg: Config) -> dict[str, Any]:
         return train_tfidf_run(cfg)
     if cfg.model.kind in ("sentence", "context"):
         return train_neural_run(cfg)
+    if cfg.model.kind == "hierarchical":
+        from lexbrief.training.train_hierarchical import train_hierarchical
+
+        return train_hierarchical(cfg)
     raise ValueError(f"Unknown model.kind {cfg.model.kind!r}")

@@ -1,0 +1,41 @@
+# M3a: BiLSTM-CRF over cached M1 sentence embeddings.
+#   lexbrief embed --run m1_inlegalbert_s42
+#   lexbrief train --config configs/m3a_bilstm_crf.yaml
+# Ablations (inherit from this file via `base:`):
+#   configs/m3a_nocrf.yaml        softmax head instead of CRF (M3a-noCRF)
+#   configs/m3a_noposition.yaml   no relative-position feature (M3a-noPosition)
+seed: 42
+device: cuda
+
+model:
+  name: m3a_bilstm_crf
+  kind: hierarchical
+  emb_run: m1_inlegalbert_s42
+  emb_pool: cls          # cls | mean
+  emb_dim: 768
+  dropout: 0.3
+  lstm_hidden: 256       # per direction -> 512 into the emission layer
+  lstm_layers: 1
+  num_labels: 13
+  use_crf: true
+  use_position: true
+
+train:
+  batch_size: 4          # documents per batch
+  lr: 1.0e-3
+  weight_decay: 0.01
+  epochs: 30
+  early_stopping_patience: 5
+  max_grad_norm: 1.0
+  eval_batch_size: 64    # sentences per batch for `lexbrief embed`
+  seeds: [13, 42, 1234]
+
+data:
+  processed_dir: data/processed
+
+paths:
+  models_dir: models
+  emb_dir: data/interim/emb
+  runs_dir: outputs/runs
+  results_dir: outputs/results
+  logs_dir: outputs/logs

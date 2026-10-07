@@ -155,10 +155,22 @@ def train(
     overrides: list[str] = _OVERRIDES_ARG,
 ) -> None:
     """Train a sentence-role classifier (M0 / M1 / M2) and evaluate the best checkpoint."""
-    from lexbrief.config import load_config
+    from lexbrief.config import load_config, read_config_dict
     from lexbrief.training.evaluate_classifier import evaluate_run
     from lexbrief.training.train_sentence import train as _train
     from lexbrief.utils.logging import setup_logging
+
+    # An empty/placeholder YAML would silently fall back to the defaults (model m1_inlegalbert)
+    # and overwrite that run's checkpoint, so training configs must name the model explicitly.
+    try:
+        model_section = read_config_dict(config).get("model") or {}
+    except FileNotFoundError as e:
+        typer.echo(f"ERROR: {e}")
+        raise typer.Exit(code=1) from None
+    missing = [k for k in ("name", "kind") if not model_section.get(k)]
+    if missing:
+        typer.echo(f"ERROR: {config} must set model.{' and model.'.join(missing)} explicitly")
+        raise typer.Exit(code=1)
 
     extra = list(overrides or [])
     if max_docs is not None:
@@ -198,9 +210,30 @@ def _echo_metrics(m: dict) -> None:
 
 
 @app.command()
-def embed() -> None:
-    """Cache sentence embeddings for the hierarchical model."""
-    _stub(4)
+def embed(
+    run: str = typer.Option(..., "--run", help="Fine-tuned M1 run, e.g. m1_inlegalbert_s42"),
+    config: str = typer.Option("configs/m3a_bilstm_crf.yaml", "--config", "-c"),
+    overrides: list[str] = _OVERRIDES_ARG,
+) -> None:
+    """Cache [CLS] and mean-pooled sentence vectors from an M1 encoder for all splits."""
+    from lexbrief.models.embed_cache import embed_run
+    from lexbrief.utils.logging import setup_logging
+
+    cfg = _load(config, overrides)
+    setup_logging(f"embed_{run}", log_dir=cfg.paths.logs_dir)
+    try:
+        out = embed_run(
+            run,
+            cfg.paths.models_dir,
+            cfg.data.processed_dir,
+            cfg.paths.emb_dir,
+            batch_size=cfg.train.eval_batch_size,
+            device_name=cfg.device,
+        )
+    except FileNotFoundError as e:
+        typer.echo(f"ERROR: {e}")
+        raise typer.Exit(code=1) from None
+    typer.echo(f"Embeddings written to {out}")
 
 
 @app.command()
