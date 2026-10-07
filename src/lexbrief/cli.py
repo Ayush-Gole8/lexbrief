@@ -155,10 +155,22 @@ def train(
     overrides: list[str] = _OVERRIDES_ARG,
 ) -> None:
     """Train a sentence-role classifier (M0 / M1 / M2) and evaluate the best checkpoint."""
-    from lexbrief.config import load_config
+    from lexbrief.config import load_config, read_config_dict
     from lexbrief.training.evaluate_classifier import evaluate_run
     from lexbrief.training.train_sentence import train as _train
     from lexbrief.utils.logging import setup_logging
+
+    # An empty/placeholder YAML would silently fall back to the defaults (model m1_inlegalbert)
+    # and overwrite that run's checkpoint, so training configs must name the model explicitly.
+    try:
+        model_section = read_config_dict(config).get("model") or {}
+    except FileNotFoundError as e:
+        typer.echo(f"ERROR: {e}")
+        raise typer.Exit(code=1) from None
+    missing = [k for k in ("name", "kind") if not model_section.get(k)]
+    if missing:
+        typer.echo(f"ERROR: {config} must set model.{' and model.'.join(missing)} explicitly")
+        raise typer.Exit(code=1)
 
     extra = list(overrides or [])
     if max_docs is not None:

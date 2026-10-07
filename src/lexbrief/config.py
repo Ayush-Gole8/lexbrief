@@ -279,6 +279,11 @@ def _read_yaml_with_base(path: Path, _seen: tuple[Path, ...] = ()) -> dict[str, 
     return data
 
 
+def read_config_dict(path: str | Path) -> dict[str, Any]:
+    """Raw YAML (with ``base:`` resolved) before defaults are applied; for presence checks."""
+    return _read_yaml_with_base(Path(path))
+
+
 def load_config(path: str | Path | None = None, overrides: Iterable[str] = ()) -> Config:
     """Load a YAML config onto the defaults and apply dotted overrides.
 
