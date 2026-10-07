@@ -38,6 +38,7 @@ class PathsConfig:
     runs_dir: str = "outputs/runs"
     results_dir: str = "outputs/results"
     figures_dir: str = "outputs/figures"
+    emb_dir: str = "data/interim/emb"
 
 
 @dataclass
@@ -85,6 +86,13 @@ class ModelConfig:
     lstm_hidden: int = 256
     lstm_layers: int = 1
     use_crf: bool = True
+    use_position: bool = True
+    """M3a: append relative position idx/n to each sentence embedding."""
+    emb_run: str = "m1_inlegalbert_s42"
+    """M3a: M1 run whose cached sentence embeddings are the input."""
+    emb_pool: str = "cls"
+    """M3a: which cached embedding to use, ``cls`` or ``mean``."""
+    emb_dim: int = 768
     freeze_encoder: bool = False
     # M0 TF-IDF + logistic regression
     tfidf_ngram_max: int = 2
@@ -255,6 +263,22 @@ def parse_overrides(overrides: Iterable[str]) -> dict[str, Any]:
     return nested
 
 
+def _read_yaml_with_base(path: Path, _seen: tuple[Path, ...] = ()) -> dict[str, Any]:
+    """Read YAML; a top-level ``base: other.yaml`` (relative path) is merged underneath."""
+    path = path.resolve()
+    if path in _seen:
+        raise ValueError(f"Circular config base chain: {[str(p) for p in (*_seen, path)]}")
+    if not path.is_file():
+        raise FileNotFoundError(f"Config file not found: {path}")
+    with path.open("r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    logger.debug("Loaded config %s", path)
+    base = data.pop("base", None)
+    if base:
+        data = _deep_merge(_read_yaml_with_base(path.parent / base, (*_seen, path)), data)
+    return data
+
+
 def load_config(path: str | Path | None = None, overrides: Iterable[str] = ()) -> Config:
     """Load a YAML config onto the defaults and apply dotted overrides.
 
@@ -267,12 +291,7 @@ def load_config(path: str | Path | None = None, overrides: Iterable[str] = ()) -
     """
     data: dict[str, Any] = {}
     if path is not None:
-        path = Path(path)
-        if not path.is_file():
-            raise FileNotFoundError(f"Config file not found: {path}")
-        with path.open("r", encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-        logger.debug("Loaded config %s", path)
+        data = _read_yaml_with_base(Path(path))
     data = _deep_merge(data, parse_overrides(overrides))
     return _build(Config, data)
 

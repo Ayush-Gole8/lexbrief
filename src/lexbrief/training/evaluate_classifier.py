@@ -134,7 +134,7 @@ def load_predictor(run_dir: Path, cfg: Config, device: torch.device):  # noqa: A
         from lexbrief.models.tfidf_baseline import TfidfBaseline
 
         m0 = TfidfBaseline.load(run_dir)
-        return lambda ex: m0.predict_proba([e.text for e in ex])
+        return _argmax(lambda split, ex: m0.predict_proba([e.text for e in ex]))
     if kind in ("sentence", "context"):
         from transformers import AutoTokenizer
 
@@ -142,23 +142,48 @@ def load_predictor(run_dir: Path, cfg: Config, device: torch.device):  # noqa: A
 
         model = SentenceClassifier.load(run_dir, dropout=cfg.model.dropout).to(device)
         tok = AutoTokenizer.from_pretrained(run_dir / ENCODER_DIR)
-        return lambda ex: predict_neural(
-            model,
-            tok,
-            ex,
-            cfg.model.max_length,
-            context=kind == "context",
-            batch_size=cfg.train.eval_batch_size,
-            device=device,
-            bf16=cfg.train.bf16,
+        return _argmax(
+            lambda split, ex: predict_neural(
+                model,
+                tok,
+                ex,
+                cfg.model.max_length,
+                context=kind == "context",
+                batch_size=cfg.train.eval_batch_size,
+                device=device,
+                bf16=cfg.train.bf16,
+            )
         )
+    if kind == "hierarchical":
+        from lexbrief.models.embed_cache import load_split_embeddings
+        from lexbrief.training.train_hierarchical import doc_tensors, load_tagger, predict_docs
+
+        tagger = load_tagger(run_dir, cfg, device)
+
+        def predict(split: str, ex: list[SentenceExample]) -> tuple[np.ndarray, np.ndarray]:
+            data = load_split_embeddings(cfg.paths.emb_dir, cfg.model.emb_run, split)
+            if data["doc_ids"] != list(dict.fromkeys(e.doc_id for e in ex)):
+                raise ValueError(f"Cached embeddings for {split} do not match the processed data")
+            return predict_docs(tagger, doc_tensors(data, cfg.model.emb_pool), device)
+
+        return predict
     raise ValueError(f"Unknown model.kind {kind!r}")
 
 
-def _pred_rows(examples: list[SentenceExample], probs: np.ndarray) -> list[dict[str, Any]]:
+def _argmax(fn):  # noqa: ANN001, ANN202 - wraps a probs-only predictor
+    def predict(split: str, ex: list[SentenceExample]) -> tuple[np.ndarray, np.ndarray]:
+        probs = fn(split, ex)
+        return probs, probs.argmax(axis=1)
+
+    return predict
+
+
+def _pred_rows(
+    examples: list[SentenceExample], probs: np.ndarray, preds: np.ndarray, prob_kind: str
+) -> list[dict[str, Any]]:
     rows = []
-    for e, p in zip(examples, probs, strict=True):
-        k = int(p.argmax())
+    for e, p, k in zip(examples, probs, preds, strict=True):
+        k = int(k)
         rows.append(
             {
                 "doc_id": e.doc_id,
@@ -168,6 +193,8 @@ def _pred_rows(examples: list[SentenceExample], probs: np.ndarray) -> list[dict[
                 "gold_coarse": e.gold_coarse,
                 "pred_coarse": FINE_TO_COARSE[FINE_LABELS[k]],
                 "probs": [round(float(x), 5) for x in p],
+                "prob_kind": prob_kind,
+                "confidence": round(float(p[k]), 5),
             }
         )
     return rows
@@ -192,13 +219,19 @@ def evaluate_run(
         "seed": cfg.seed,
     }
 
-    # BUILD test (fine gold)
-    test_ex = [e for e in flatten(load_split(cfg.data.processed_dir, "build_test")) if e.label >= 0]
-    probs = predict(test_ex)
-    rows = _pred_rows(test_ex, probs)
+    prob_kind = (
+        "crf_marginals" if cfg.model.kind == "hierarchical" and cfg.model.use_crf else ("softmax")
+    )
+
+    # BUILD test (fine gold). Predict whole documents, then score labelled sentences.
+    all_ex = flatten(load_split(cfg.data.processed_dir, "build_test"))
+    probs_all, preds_all = predict("build_test", all_ex)
+    keep = [i for i, e in enumerate(all_ex) if e.label >= 0]
+    test_ex = [all_ex[i] for i in keep]
+    rows = _pred_rows(test_ex, probs_all[keep], preds_all[keep], prob_kind)
     write_jsonl(rows, out_dir / "preds_build_test.jsonl")
     gold = [e.label for e in test_ex]
-    pred = [int(k) for k in probs.argmax(axis=1)]
+    pred = [int(k) for k in preds_all[keep]]
     metrics["build_test"] = {
         "fine": fine_metrics(gold, pred),
         "coarse": coarse_metrics(
@@ -213,8 +246,8 @@ def evaluate_run(
     inext_path = Path(cfg.data.processed_dir) / "inext.jsonl"
     if inext_path.is_file():
         inext_ex = flatten(load_split(cfg.data.processed_dir, "inext"))
-        probs_x = predict(inext_ex)
-        rows_x = _pred_rows(inext_ex, probs_x)
+        probs_x, preds_x = predict("inext", inext_ex)
+        rows_x = _pred_rows(inext_ex, probs_x, preds_x, prob_kind)
         write_jsonl(rows_x, out_dir / "preds_inext.jsonl")
         labelled = [r for r in rows_x if r["gold_coarse"]]
         metrics["inext"] = {

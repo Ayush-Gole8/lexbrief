@@ -1,0 +1,6 @@
+# M3a-noPosition ablation: no relative-position (idx/n) input feature.
+base: m3a_bilstm_crf.yaml
+
+model:
+  name: m3a_noposition
+  use_position: false
