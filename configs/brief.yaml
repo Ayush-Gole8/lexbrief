@@ -20,6 +20,7 @@ brief:
     ARGUMENTS: 0.07
   ruling_min_sentences: 3
   min_sentences_per_role: 1
+  min_alpha_words: 2                  # "a 2 5." is never selected; "appeal dismissed." is (all systems)
 
   # Features
   edge_threshold: 0.1                 # drop TextRank edges with cosine < 0.1

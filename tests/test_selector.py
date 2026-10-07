@@ -93,11 +93,31 @@ def test_baselines_respect_budget() -> None:
     assert lead(WORDS, 10) == [0, 1]
     assert fill_budget([3, 0, 1], WORDS, 9) == [3]  # 3 (8 words) fits; 0 (5) and 1 (4) do not
     assert fill_budget([2, 1, 0], WORDS, 10) == [1, 2]  # 2 (6) fits, 1 (4) fits, 0 skipped
+    assert fill_budget([1, 2], WORDS, 10, eligible=[True, False, True, True, True, True]) == [2]
     emb = np.random.default_rng(1).normal(size=(len(TEXTS), 8))
     idx = mmr_baseline(emb, WORDS, 12, lam=0.7)
     assert sum(WORDS[i] for i in idx) <= 12 and idx == sorted(idx)
     s = lexrank_scores(TEXTS)
     assert s.shape == (len(TEXTS),) and np.isfinite(s).all()
+
+
+def test_eligibility_rule_rejects_fragments_keeps_short_rulings() -> None:
+    from lexbrief.pipeline import BriefDoc
+
+    texts = ["a 2 5.", "appeal dismissed.", "indlaw 621 1940.", "the appeal is allowed."]
+    doc = BriefDoc(
+        "d",
+        texts,
+        [len(t.split()) for t in texts],
+        np.zeros((4, 2)),
+        [None] * 4,
+        [None] * 4,
+        [0.0] * 4,
+        {},
+        {},
+        {},
+    )
+    assert doc.eligible(2) == [False, True, False, True]
 
 
 def test_rouge2_and_oracle() -> None:

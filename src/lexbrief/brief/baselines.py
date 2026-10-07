@@ -17,19 +17,32 @@ from lexbrief.brief.features import cosine_matrix, textrank
 logger = logging.getLogger(__name__)
 
 
-def fill_budget(order: Sequence[int], words: Sequence[int], length: int) -> list[int]:
-    """Take sentences in ``order`` while they fit in ``length`` words; return sorted indices."""
+Eligible = Sequence[bool] | None
+
+
+def _ok(i: int, words: Sequence[int], eligible: Eligible) -> bool:
+    return words[i] > 0 and (eligible is None or bool(eligible[i]))
+
+
+def fill_budget(
+    order: Sequence[int], words: Sequence[int], length: int, eligible: Eligible = None
+) -> list[int]:
+    """Take sentences in ``order`` while they fit in ``length`` words; return sorted indices.
+
+    Sentences with ``eligible[i] == False`` (citation/number fragments) are never selected,
+    matching the role-aware selector's candidate pool.
+    """
     used, out = 0, []
     for i in order:
-        if words[i] > 0 and used + words[i] <= length:
+        if _ok(i, words, eligible) and used + words[i] <= length:
             out.append(i)
             used += words[i]
     return sorted(out)
 
 
-def lead(words: Sequence[int], length: int) -> list[int]:
+def lead(words: Sequence[int], length: int, eligible: Eligible = None) -> list[int]:
     """Lead-L: first sentences of the document."""
-    return fill_budget(range(len(words)), words, length)
+    return fill_budget(range(len(words)), words, length, eligible)
 
 
 def textrank_baseline(
@@ -38,12 +51,13 @@ def textrank_baseline(
     length: int,
     edge_threshold: float = 0.1,
     damping: float = 0.85,
+    eligible: Eligible = None,
 ) -> list[int]:
     """TextRank over the whole document (same embeddings as the role-aware system)."""
     sim = cosine_matrix(emb)
     pr = textrank(sim, range(len(words)), edge_threshold, damping)
     order = sorted(range(len(words)), key=lambda i: (-pr[i], i))
-    return fill_budget(order, words, length)
+    return fill_budget(order, words, length, eligible)
 
 
 class _WordTokenizer:
@@ -79,20 +93,28 @@ def lexrank_scores(texts: Sequence[str]) -> np.ndarray:
     return np.asarray(lr.power_method(matrix, lr.epsilon), dtype=np.float64)
 
 
-def lexrank_baseline(texts: Sequence[str], words: Sequence[int], length: int) -> list[int]:
+def lexrank_baseline(
+    texts: Sequence[str], words: Sequence[int], length: int, eligible: Eligible = None
+) -> list[int]:
     s = lexrank_scores(texts)
     order = sorted(range(len(texts)), key=lambda i: (-s[i], i))
-    return fill_budget(order, words, length)
+    return fill_budget(order, words, length, eligible)
 
 
-def mmr_baseline(emb: np.ndarray, words: Sequence[int], length: int, lam: float = 0.7) -> list[int]:
+def mmr_baseline(
+    emb: np.ndarray,
+    words: Sequence[int],
+    length: int,
+    lam: float = 0.7,
+    eligible: Eligible = None,
+) -> list[int]:
     """Maximal Marginal Relevance: relevance = cosine to the document centroid."""
     sim = cosine_matrix(emb)
     x = emb.astype(np.float64)
     x = x / np.maximum(np.linalg.norm(x, axis=1, keepdims=True), 1e-8)
     centroid = x.mean(0)
     rel = x @ (centroid / max(np.linalg.norm(centroid), 1e-8))
-    remaining = set(range(len(words)))
+    remaining = {i for i in range(len(words)) if _ok(i, words, eligible)}
     chosen: list[int] = []
     used = 0
     while remaining:
@@ -103,7 +125,7 @@ def mmr_baseline(emb: np.ndarray, words: Sequence[int], length: int, lam: float 
             if val > best_val:
                 best, best_val = i, val
         remaining.discard(best)
-        if words[best] > 0 and used + words[best] <= length:
+        if used + words[best] <= length:
             chosen.append(best)
             used += words[best]
     return sorted(chosen)

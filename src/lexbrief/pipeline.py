@@ -13,6 +13,7 @@ Role sources:
 from __future__ import annotations
 
 import logging
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,6 +35,7 @@ from lexbrief.utils.io import read_json, read_jsonl
 logger = logging.getLogger(__name__)
 
 ANNOTATORS = ("A1", "A2")
+_ALPHA_WORD = re.compile(r"[a-z]{2,}", re.IGNORECASE)
 ROLE_MODES = ("predicted", "gold")
 
 
@@ -73,6 +75,14 @@ class BriefDoc:
     @property
     def n_words(self) -> int:
         return sum(self.words)
+
+    def eligible(self, min_alpha_words: int) -> list[bool]:
+        """Selectable sentences: at least ``min_alpha_words`` alphabetic words (2+ letters).
+
+        Rejects number/citation debris such as ``"a 2 5."`` while keeping short operative
+        sentences such as ``"appeal dismissed."``.
+        """
+        return [len(_ALPHA_WORD.findall(t)) >= min_alpha_words for t in self.texts]
 
     def ref_words(self) -> float:
         """Mean reference length (words) over annotators."""
@@ -200,6 +210,9 @@ class BriefSystem:
     # --------------------------------------------------------------- inference
     def prepare(self, doc: BriefDoc, length: int) -> PreparedDoc:
         roles, conf = doc.roles(self.roles_mode)
+        # fragments are not candidates (same eligibility rule as the baselines and oracle)
+        ok = doc.eligible(self.bc.min_alpha_words)
+        roles = [r if e else None for r, e in zip(roles, ok, strict=True)]
         feats = compute_features(
             doc.texts,
             roles,
@@ -233,20 +246,25 @@ class BriefSystem:
 def baseline_indices(name: str, doc: BriefDoc, length: int, cfg: Config) -> list[int]:
     """Indices chosen by a role-agnostic baseline (or the oracle against reference A1)."""
     bc = cfg.brief
+    mw = doc.eligible(bc.min_alpha_words)
     if name == "lead":
-        return baselines.lead(doc.words, length)
+        return baselines.lead(doc.words, length, mw)
     if name == "textrank":
         return baselines.textrank_baseline(
-            doc.emb, doc.words, length, bc.edge_threshold, bc.pagerank_damping
+            doc.emb, doc.words, length, bc.edge_threshold, bc.pagerank_damping, mw
         )
     if name == "lexrank":
-        return baselines.lexrank_baseline(doc.texts, doc.words, length)
+        return baselines.lexrank_baseline(doc.texts, doc.words, length, mw)
     if name == "mmr":
-        return baselines.mmr_baseline(doc.emb, doc.words, length, bc.mmr_lambda)
+        return baselines.mmr_baseline(doc.emb, doc.words, length, bc.mmr_lambda, mw)
     if name in ("oracle", "oracle_A1", "oracle_A2"):
         ref = "A2" if name == "oracle_A2" else "A1"
         return greedy_oracle(
-            doc.bigrams(bc.rouge_stemmer), doc.words, doc.ref_bigrams(bc.rouge_stemmer)[ref], length
+            doc.bigrams(bc.rouge_stemmer),
+            doc.words,
+            doc.ref_bigrams(bc.rouge_stemmer)[ref],
+            length,
+            mw,
         )
     raise ValueError(f"Unknown baseline {name!r}")
 

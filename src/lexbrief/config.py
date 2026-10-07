@@ -158,6 +158,8 @@ class BriefConfig:
     ARGUMENTS)."""
     ruling_min_sentences: int = 3
     min_sentences_per_role: int = 1
+    min_alpha_words: int = 2
+    """Sentences with fewer alphabetic words (2+ letters) are never selected, by any system."""
     # Features
     edge_threshold: float = 0.1
     pagerank_damping: float = 0.85

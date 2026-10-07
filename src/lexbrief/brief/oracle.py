@@ -16,6 +16,7 @@ def greedy_oracle(
     words: Sequence[int],
     reference: Counter,
     length: int,
+    eligible: Sequence[bool] | None = None,
 ) -> list[int]:
     """Repeatedly add the sentence that most increases ROUGE-2 F1 against ``reference``.
 
@@ -27,7 +28,9 @@ def greedy_oracle(
     chosen: list[int] = []
     cand: Counter = Counter()
     best_score, used = 0.0, 0
-    remaining = [i for i in range(len(words)) if 0 < words[i] <= length]
+    remaining = [
+        i for i in range(len(words)) if 0 < words[i] <= length and (eligible is None or eligible[i])
+    ]
     while remaining:
         best_i, best_val = None, best_score
         for i in remaining:
